@@ -4,35 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Де є світло? ⚡</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             darkMode: 'media',
         }
     </script>
+    
     <style>
         body { transition: background-color 0.3s, color 0.3s; }
+        /* Текстуры для фона */
         .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .bg-texture-dark { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
     </style>
     
     <script type="module">
+        // Импортируем стабильные версии библиотек (используем 10.7.1 для надежности через CDN)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
         import { getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // ВСТАВ СЮДИ СВОЇ ДАНІ FIREBASE
+        // ТВОЯ КОНФИГУРАЦИЯ (ИЗ ТВОЕГО СООБЩЕНИЯ)
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyB098Rx6AOCdkjX7ZgX6Zk42uNDv8PXbXc",
+            authDomain: "coworkly-3d04d.firebaseapp.com",
+            projectId: "coworkly-3d04d",
+            storageBucket: "coworkly-3d04d.firebasestorage.app",
+            messagingSenderId: "685280227506",
+            appId: "1:685280227506:web:9e31da685783f7948159ab",
+            measurementId: "G-XNH7HV87L4"
         };
 
+        // Инициализация Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const analytics = getAnalytics(app); // Подключили аналитику
+        const db = getFirestore(app);      // Подключили базу данных
 
+        // --- ДАННЫЕ ГОРОДОВ ---
         const cities = [
             "Київ", "Харків", "Одеса", "Дніпро", "Запоріжжя", "Львів", "Кривий Ріг", "Миколаїв", 
             "Вінниця", "Полтава", "Чернігів", "Черкаси", "Житомир", "Суми", "Рівне", 
@@ -42,21 +51,23 @@
             "Ковель", "Ніжин", "Сміла", "Калуш", "Червоноград", "Бориспіль", "Коростень", "Коломия", "Ірпінь"
         ].sort();
 
-        // Ініціалізація списків міст
+        // Заполнение выпадающих списков
         const citySelects = ['searchCity', 'addCity'];
         citySelects.forEach(id => {
             const select = document.getElementById(id);
-            cities.forEach(city => {
-                const opt = document.createElement('option');
-                opt.value = city;
-                opt.textContent = city;
-                select.appendChild(opt);
-            });
+            if(select) {
+                cities.forEach(city => {
+                    const opt = document.createElement('option');
+                    opt.value = city;
+                    opt.textContent = city;
+                    select.appendChild(opt);
+                });
+            }
         });
 
-        // Формула Haversine для розрахунку відстані (в км)
+        // --- ЛОГИКА ГЕОЛОКАЦИИ (HAVERSINE) ---
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Радіус землі в км
+            const R = 6371; 
             const dLat = deg2rad(lat2 - lat1);
             const dLon = deg2rad(lon2 - lon1);
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -67,13 +78,12 @@
 
         function deg2rad(deg) { return deg * (Math.PI/180); }
 
-        // Змінна для зберігання локації користувача
         let userCoords = null;
 
-        // Функція запиту геолокації
+        // Запрос локации пользователя
         window.requestUserLocation = () => {
             const statusDiv = document.getElementById('geoStatus');
-            statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Отримання координат...</span>';
+            if(statusDiv) statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Отримання координат...</span>';
             
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -82,122 +92,112 @@
                             lat: position.coords.latitude,
                             lng: position.coords.longitude
                         };
-                        statusDiv.innerHTML = '<span class="text-green-600">✅ Локацію визначено</span>';
-                        // Скидаємо фільтр міста, бо шукаємо по GPS
-                        document.getElementById('searchCity').value = "";
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600">✅ Локацію визначено</span>';
+                        const citySelect = document.getElementById('searchCity');
+                        if(citySelect) citySelect.value = ""; // Сбрасываем город, так как ищем по GPS
                         loadLocations();
                     },
                     (error) => {
-                        console.error(error);
+                        console.error("Geo Error:", error);
                         userCoords = null;
-                        statusDiv.innerHTML = '<span class="text-gray-500">📍 Геолокація недоступна (пошук за містом)</span>';
-                        loadLocations(); // Завантажуємо просто за списком
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-gray-500">📍 Геолокація недоступна (пошук за містом)</span>';
+                        loadLocations();
                     }
                 );
             } else {
-                statusDiv.innerHTML = "Геолокація не підтримується браузером";
                 loadLocations();
             }
         }
 
-        // Завантаження даних
+        // --- ЗАГРУЗКА И ОТОБРАЖЕНИЕ ---
         async function loadLocations() {
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
             
-            listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Оновлення списку...</p>';
+            if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Оновлення списку...</p>';
             
-            const q = query(collection(db, "locations"), orderBy("updated_at", "desc"));
-            const querySnapshot = await getDocs(q);
-            
-            let locations = [];
+            try {
+                // Запрос к базе данных
+                const q = query(collection(db, "locations"), orderBy("updated_at", "desc"));
+                const querySnapshot = await getDocs(q);
+                
+                let locations = [];
 
-            querySnapshot.forEach((docSnap) => {
-                const data = docSnap.data();
-                let dist = null;
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    let dist = null;
+                    // Считаем дистанцию, если есть координаты и там и там
+                    if (userCoords && data.lat && data.lng) {
+                        dist = getDistanceFromLatLonInKm(userCoords.lat, userCoords.lng, data.lat, data.lng);
+                    }
+                    locations.push({ id: docSnap.id, ...data, distance: dist });
+                });
 
-                // Якщо є координати у юзера І у закладу - рахуємо відстань
-                if (userCoords && data.lat && data.lng) {
-                    dist = getDistanceFromLatLonInKm(userCoords.lat, userCoords.lng, data.lat, data.lng);
+                // Сортировка или Фильтрация
+                if (userCoords && !cityFilter) {
+                    locations = locations.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+                } else if (cityFilter) {
+                    locations = locations.filter(l => l.city === cityFilter);
                 }
 
-                locations.push({
-                    id: docSnap.id,
-                    ...data,
-                    distance: dist
-                });
-            });
-
-            // Логіка сортування та фільтрації
-            if (userCoords && !cityFilter) {
-                // Якщо є GPS і не вибрано місто вручну -> сортуємо за відстанню
-                locations = locations.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
-                // Фільтруємо ті, що дуже далеко (наприклад > 100км), щоб не показувати інші міста
-                // locations = locations.filter(l => l.distance < 100); 
-            } else if (cityFilter) {
-                // Якщо вибрано конкретне місто -> фільтруємо за назвою міста
-                locations = locations.filter(l => l.city === cityFilter);
-            }
-
-            // Рендерінг
-            listDiv.innerHTML = '';
-
-            if (locations.length === 0) {
-                listDiv.innerHTML = `
-                    <div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4">
-                        <p class="text-xl mb-2">😔</p>
-                        <h3 class="font-bold text-gray-700 dark:text-gray-300">Пусто...</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                            По вашому місту ще не додані адреси коворкінгу. 
-                            <br>Залишайтесь з нами та слідкуйте за оновленнями!
-                        </p>
-                    </div>
-                `;
-                return;
-            }
-
-            locations.forEach((data) => {
-                const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
-                const distBadge = data.distance 
-                    ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-xs font-bold shadow-sm">📍 ${data.distance.toFixed(1)} км</span>` 
-                    : '';
-
-                const card = document.createElement('div');
-                card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4 transition-all relative overflow-hidden";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-2">
-                        <div class="flex flex-col">
-                            <h3 class="font-bold text-lg dark:text-white leading-tight">${data.name}</h3>
-                            <div class="mt-1">${distBadge}</div>
-                        </div>
-                        <span class="text-[10px] uppercase font-semibold text-gray-400 dark:text-gray-500 text-right min-w-[80px]">Оновлено:<br>${date}</span>
-                    </div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">${data.city}, ${data.address}</p>
+                // Отрисовка
+                if(listDiv) {
+                    listDiv.innerHTML = '';
                     
-                    <div class="flex gap-2 text-xs font-medium mb-3">
-                        <span class="${data.has_power ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'} px-3 py-1.5 rounded-lg flex items-center gap-1">
-                           ${data.has_power ? '⚡ Є світло' : '💤 Немає світла'}
-                        </span>
-                        <span class="${data.has_internet ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'} px-3 py-1.5 rounded-lg flex items-center gap-1">
-                           ${data.has_internet ? '🌐 Є інет' : '🚫 Немає інету'}
-                        </span>
-                    </div>
+                    if (locations.length === 0) {
+                        listDiv.innerHTML = `
+                            <div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4 bg-white/50 dark:bg-gray-800/50">
+                                <p class="text-xl mb-2">😔</p>
+                                <h3 class="font-bold text-gray-700 dark:text-gray-300">Пусто...</h3>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                    По вашому місту ще не додані адреси коворкінгу. <br>Залишайтесь з нами!
+                                </p>
+                            </div>
+                        `;
+                        return;
+                    }
 
-                    ${data.description ? `<p class="text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg mb-3">"${data.description}"</p>` : ''}
-                    
-                    <button onclick="window.updateStatus('${data.id}')" class="w-full py-2.5 text-blue-600 dark:text-blue-400 text-sm font-semibold border border-blue-100 dark:border-blue-900/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex justify-center items-center gap-2">
-                        <span>Це актуально зараз</span> 
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                    </button>
-                `;
-                listDiv.appendChild(card);
-            });
+                    locations.forEach((data) => {
+                        const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
+                        const distBadge = data.distance ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-xs font-bold shadow-sm">📍 ${data.distance.toFixed(1)} км</span>` : '';
+
+                        const card = document.createElement('div');
+                        card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4 transition-all relative overflow-hidden";
+                        card.innerHTML = `
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex flex-col">
+                                    <h3 class="font-bold text-lg dark:text-white leading-tight">${data.name}</h3>
+                                    <div class="mt-1">${distBadge}</div>
+                                </div>
+                                <span class="text-[10px] uppercase font-semibold text-gray-400 dark:text-gray-500 text-right min-w-[80px]">Оновлено:<br>${date}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 pb-2 mb-2">${data.city}, ${data.address}</p>
+                            <div class="flex gap-2 text-xs font-medium mb-3">
+                                <span class="${data.has_power ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'} px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                ${data.has_power ? '⚡ Є світло' : '💤 Немає світла'}
+                                </span>
+                                <span class="${data.has_internet ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700'} px-3 py-1.5 rounded-lg flex items-center gap-1">
+                                ${data.has_internet ? '🌐 Є інет' : '🚫 Немає інету'}
+                                </span>
+                            </div>
+                            ${data.description ? `<p class="text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg mb-3">"${data.description}"</p>` : ''}
+                            <button onclick="window.updateStatus('${data.id}')" class="w-full py-2.5 text-blue-600 dark:text-blue-400 text-sm font-semibold border border-blue-100 dark:border-blue-900/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex justify-center items-center gap-2">
+                                <span>Це актуально зараз</span> 
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                        `;
+                        listDiv.appendChild(card);
+                    });
+                }
+            } catch (e) {
+                console.error("Error loading docs: ", e);
+                if(listDiv) listDiv.innerHTML = `<p class="text-red-500 text-center">Помилка завантаження: ${e.message}</p>`;
+            }
         }
 
-        // Додавання локації з координатами (якщо є)
+        // --- ЛОГИКА ДОБАВЛЕНИЯ ---
         let addCoords = null;
         
-        // Отримання координат при додаванні
         window.getAddLocation = (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnGetLoc');
@@ -207,52 +207,72 @@
                     addCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     btn.className = "w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm mb-3 border border-green-300";
                     btn.innerText = "📍 Координати зафіксовано!";
-                }, () => {
-                    btn.innerText = "❌ Помилка GPS (буде збережено без координат)";
+                }, (err) => {
+                    console.error(err);
+                    btn.innerText = "❌ Помилка GPS (збережемо без координат)";
                 });
             }
         };
 
         window.saveLocation = async () => {
             const btn = document.getElementById('saveBtn');
-            const name = document.getElementById('addName').value;
-            if(!name) return alert("Введіть назву закладу");
-
-            btn.disabled = true;
-            btn.innerText = "Збереження...";
-
-            const docData = {
-                name: name,
-                city: document.getElementById('addCity').value,
-                address: document.getElementById('addAddress').value,
-                has_power: document.getElementById('hasPower').checked,
-                has_internet: document.getElementById('hasInternet').checked,
-                description: document.getElementById('addDesc').value,
-                updated_at: serverTimestamp()
-            };
-
-            // Якщо вдалося взяти координати при додаванні
-            if (addCoords) {
-                docData.lat = addCoords.lat;
-                docData.lng = addCoords.lng;
+            const nameField = document.getElementById('addName');
+            const cityField = document.getElementById('addCity');
+            const addressField = document.getElementById('addAddress');
+            
+            if(!nameField.value || !addressField.value) {
+                alert("Будь ласка, заповніть назву та адресу");
+                return;
             }
 
-            await addDoc(collection(db, "locations"), docData);
-            location.reload(); 
+            try {
+                btn.disabled = true;
+                btn.innerText = "Збереження...";
+
+                const docData = {
+                    name: nameField.value,
+                    city: cityField.value,
+                    address: addressField.value,
+                    has_power: document.getElementById('hasPower').checked,
+                    has_internet: document.getElementById('hasInternet').checked,
+                    description: document.getElementById('addDesc').value,
+                    updated_at: serverTimestamp()
+                };
+
+                if (addCoords) {
+                    docData.lat = addCoords.lat;
+                    docData.lng = addCoords.lng;
+                }
+
+                await addDoc(collection(db, "locations"), docData);
+                
+                // Перезагрузка после успеха
+                location.reload(); 
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                alert("Помилка при збереженні (перевірте правила БД): " + error.message);
+                btn.disabled = false;
+                btn.innerText = "ОПУБЛІКУВАТИ";
+            }
         };
 
         window.updateStatus = async (id) => {
-            const docRef = doc(db, "locations", id);
-            await updateDoc(docRef, { updated_at: serverTimestamp() });
-            loadLocations();
+            try {
+                const docRef = doc(db, "locations", id);
+                await updateDoc(docRef, { updated_at: serverTimestamp() });
+                loadLocations();
+            } catch (e) {
+                console.error("Update error:", e);
+            }
         };
 
-        // Експортуємо функції
+        // Экспорт функций
         window.loadLocations = loadLocations;
         window.requestUserLocation = requestUserLocation;
         
     </script>
 </head>
+
 <body class="bg-gray-50 dark:bg-gray-900 bg-texture-light dark:bg-texture-dark min-h-screen font-sans text-gray-900 dark:text-gray-100">
 
     <nav class="bg-blue-600 dark:bg-blue-800 text-white p-4 shadow-lg sticky top-0 z-20">
@@ -267,12 +287,11 @@
         </div>
 
         <div id="sectionFind" class="space-y-4">
-            
             <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="flex gap-2 mb-2">
                     <select id="searchCity" onchange="window.loadLocations()" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
                         <option value="" disabled selected>Оберіть місто...</option>
-                        </select>
+                    </select>
                     <button onclick="window.requestUserLocation()" class="bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 p-3 rounded-xl border border-blue-200 dark:border-blue-800" title="Знайти поруч">
                         📍
                     </button>
@@ -327,10 +346,7 @@
                 add.classList.add('hidden');
                 tFind.className = "flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-bold transition-all shadow-md";
                 tAdd.className = "flex-1 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 font-bold transition-all";
-                
-                // АВТОМАТИЧНИЙ ЗАПИТ ГЕОЛОКАЦІЇ ПРИ ВХОДІ
                 window.requestUserLocation();
-
             } else {
                 find.classList.add('hidden');
                 add.classList.remove('hidden');
