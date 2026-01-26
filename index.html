@@ -16,6 +16,8 @@
         body { transition: background-color 0.3s, color 0.3s; }
         .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .bg-texture-dark { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s; }
     </style>
     
     <script type="module">
@@ -60,7 +62,7 @@
             }
         });
 
-        // 1. Транслітерація для ID
+        // 1. Транслітерація
         function generateReadableId(city, name) {
             const map = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh',
@@ -77,27 +79,21 @@
             return `${result}-${random}`;
         }
 
-        // 2. Функція Геокодування (Текст -> Координати)
-        // Використовує безкоштовний API OpenStreetMap
+        // 2. Геокодування (OpenStreetMap)
         async function getCoordinatesFromAddress(city, address) {
             const query = `${address}, ${city}, Ukraine`;
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-            
             try {
-                const response = await fetch(url, {
-                    headers: { 'User-Agent': 'Coworkly-App' } // Важливо для API
-                });
+                const response = await fetch(url, { headers: { 'User-Agent': 'Coworkly-App' } });
                 const data = await response.json();
                 if (data && data.length > 0) {
                     return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
                 }
-            } catch (e) {
-                console.warn("Geocoding failed:", e);
-            }
+            } catch (e) { console.warn("Geocoding failed:", e); }
             return null;
         }
 
-        // 3. Розрахунок відстані
+        // 3. Відстань
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
             const R = 6371; 
             const dLat = (lat2-lat1) * (Math.PI/180);
@@ -108,16 +104,17 @@
         }
 
         let userCoords = null;
+        let addCoords = null; 
+        let tempFormData = null;
 
-        // 4. Отримання локації користувача
+        // 4. Локація користувача (для пошуку)
         window.requestUserLocation = () => {
             const statusDiv = document.getElementById('geoStatus');
-            if(statusDiv) statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Визначаємо вашу локацію...</span>';
+            if(statusDiv) statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Визначаємо локацію...</span>';
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
                     if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Вашу локацію знайдено</span>';
-                    // Скидаємо місто, щоб шукати скрізь поруч
                     document.getElementById('searchCity').value = "";
                     loadLocations();
                 }, (error) => {
@@ -128,7 +125,7 @@
             } else { loadLocations(); }
         }
 
-        // 5. Завантаження та відображення
+        // 5. Завантаження списку
         async function loadLocations() {
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
@@ -145,11 +142,8 @@
                     locations.push({ id: docSnap.id, ...data, distance: dist });
                 });
 
-                if (cityFilter) {
-                    locations = locations.filter(l => l.city === cityFilter);
-                }
+                if (cityFilter) locations = locations.filter(l => l.city === cityFilter);
 
-                // Сортування: Спочатку найближчі, потім ті, що без координат
                 if (userCoords) {
                     locations.sort((a, b) => {
                         const distA = a.distance !== null ? a.distance : 99999;
@@ -166,19 +160,11 @@
                     }
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
+                        let mapLink = data.lat && data.lng ? `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.city + ', ' + data.address)}`;
                         
-                        // Побудова посилання на Google Maps
-                        // Якщо є координати -> точний маршрут. Якщо ні -> пошук за адресою.
-                        let mapLink = '#';
-                        if (data.lat && data.lng) {
-                            mapLink = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`;
-                        } else {
-                            mapLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.city + ', ' + data.address)}`;
-                        }
-
                         const distBadge = data.distance 
-                            ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>` 
-                            : '';
+                            ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ~${data.distance.toFixed(1)} км</span>` 
+                            : '<span class="bg-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🌐 Немає GPS</span>';
                         
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
@@ -193,7 +179,6 @@
                                 <span class="${data.has_internet ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400'} px-2 py-1 rounded-lg text-xs font-bold">${data.has_internet ? '🌐 Є інет' : '🚫 Немає'}</span>
                             </div>
                             ${data.description ? `<p class="text-sm italic text-gray-500 mb-3 border-l-2 pl-2 border-gray-300">${data.description}</p>` : ''}
-                            
                             <div class="flex gap-2">
                                 <button onclick="window.updateStatus('${data.id}')" class="flex-1 py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
                                 <a href="${mapLink}" target="_blank" class="flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-bold flex items-center justify-center hover:bg-gray-200 transition">🗺️ Маршрут</a>
@@ -205,70 +190,70 @@
             } catch (e) { console.error(e); }
         }
 
-        let addCoords = null;
-
-        // Отримання координат при додаванні
-        window.getAddLocation = (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('btnGetLoc');
-            
-            if (!navigator.geolocation) {
-                btn.innerText = "❌ GPS не підтримується";
-                return;
-            }
-            btn.disabled = true;
-            btn.innerText = "Запит дозволу... (натисніть 'Дозволити')";
-            btn.className = "w-full py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm border border-yellow-300 mb-3 transition-all";
-
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    addCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    btn.className = "w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm border border-green-300 mb-3 font-bold shadow-sm";
-                    btn.innerText = "📍 Ваші координати зафіксовано!";
-                    btn.disabled = false;
-                },
-                (err) => {
-                    console.error("GPS Error:", err);
-                    btn.className = "w-full py-2 bg-red-100 text-red-700 rounded-lg text-sm border border-red-300 mb-3";
-                    btn.disabled = false;
-                    switch(err.code) {
-                        case 1: btn.innerText = "❌ Ви заборонили доступ"; break;
-                        case 2: btn.innerText = "❌ Неможливо визначити"; break;
-                        default: btn.innerText = "❌ Помилка GPS (будемо шукати за адресою)";
-                    }
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        };
-
-        // 6. Збереження (ОНОВЛЕНО: додано авто-пошук координат)
-        window.saveLocation = async () => {
-            const btn = document.getElementById('saveBtn');
+        // 6. ПІДГОТОВКА ДО ПУБЛІКАЦІЇ (ВІДКРИВАЄ МОДАЛКУ)
+        window.openConfirmation = async () => {
+            const btn = document.getElementById('preSaveBtn');
             const name = document.getElementById('addName').value;
             const city = document.getElementById('addCity').value;
             const addr = document.getElementById('addAddress').value;
-            
+            const desc = document.getElementById('addDesc').value;
+            const hasPower = document.getElementById('hasPower').checked;
+            const hasInternet = document.getElementById('hasInternet').checked;
+
             if(!name || !addr) return alert("Заповніть назву та адресу!");
 
-            try {
-                btn.disabled = true;
-                btn.innerText = "Збереження...";
-                
-                // Якщо користувач не натиснув кнопку GPS, пробуємо знайти координати за адресою автоматично
-                if (!addCoords) {
-                    btn.innerText = "🔍 Шукаємо адресу на мапі...";
-                    const autoCoords = await getCoordinatesFromAddress(city, addr);
-                    if (autoCoords) {
-                        addCoords = autoCoords;
-                    }
-                }
+            btn.disabled = true;
+            btn.innerText = "Шукаємо адресу на карті...";
 
-                const customId = generateReadableId(city, name);
+            // Авто-пошук координат за адресою
+            let geoStatusText = "❌ Не знайдено на карті";
+            let geoClass = "text-red-500";
+
+            const autoCoords = await getCoordinatesFromAddress(city, addr);
+            if (autoCoords) {
+                addCoords = { ...autoCoords, method: 'auto' };
+                geoStatusText = "✅ Знайдено на карті";
+                geoClass = "text-green-600 font-bold";
+            } else {
+                addCoords = null;
+            }
+
+            // Зберігаємо дані в тимчасову змінну
+            tempFormData = { name, city, addr, desc, hasPower, hasInternet };
+
+            // Заповнюємо модалку
+            document.getElementById('confName').innerText = name;
+            document.getElementById('confAddress').innerText = `${city}, ${addr}`;
+            document.getElementById('confGeo').innerHTML = `<span class="${geoClass}">${geoStatusText}</span>`;
+            document.getElementById('confOpts').innerHTML = `
+                ${hasPower ? '⚡ Світло ' : ''} 
+                ${hasInternet ? '🌐 Інтернет' : ''}
+            `;
+
+            // Показуємо модалку
+            const modal = document.getElementById('confirmModal');
+            modal.classList.remove('hidden');
+            
+            btn.disabled = false;
+            btn.innerText = "ОПУБЛІКУВАТИ";
+        };
+
+        // 7. ФІНАЛЬНЕ ЗБЕРЕЖЕННЯ
+        window.finalSave = async () => {
+            if (!tempFormData) return;
+            const confirmBtn = document.getElementById('confirmBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = "Відправка...";
+
+            try {
+                const customId = generateReadableId(tempFormData.city, tempFormData.name);
                 const docData = {
-                    name, city, address: addr,
-                    has_power: document.getElementById('hasPower').checked,
-                    has_internet: document.getElementById('hasInternet').checked,
-                    description: document.getElementById('addDesc').value,
+                    name: tempFormData.name,
+                    city: tempFormData.city,
+                    address: tempFormData.addr,
+                    has_power: tempFormData.hasPower,
+                    has_internet: tempFormData.hasInternet,
+                    description: tempFormData.desc,
                     updated_at: serverTimestamp()
                 };
                 
@@ -281,9 +266,13 @@
                 location.reload(); 
             } catch (error) { 
                 alert("Помилка: " + error.message); 
-                btn.disabled = false; 
-                btn.innerText = "ОПУБЛІКУВАТИ";
+                confirmBtn.disabled = false; 
+                confirmBtn.innerText = "Все вірно, публікуємо";
             }
+        };
+
+        window.closeModal = () => {
+            document.getElementById('confirmModal').classList.add('hidden');
         };
 
         window.updateStatus = async (id) => {
@@ -304,6 +293,7 @@
             <button onclick="showTab('find')" id="tabFind" class="flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-bold transition-all shadow-md">Знайти</button>
             <button onclick="showTab('add')" id="tabAdd" class="flex-1 py-2.5 rounded-lg text-gray-500 font-bold">Додати</button>
         </div>
+        
         <div id="sectionFind" class="space-y-4">
             <div class="bg-white/90 dark:bg-gray-800/90 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <div class="flex gap-2 mb-2">
@@ -316,6 +306,7 @@
             </div>
             <div id="locationsList"></div>
         </div>
+
         <div id="sectionAdd" class="hidden bg-white/90 dark:bg-gray-800/90 p-5 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl">
             <h2 class="text-xl font-bold mb-5 text-center">Додати коворкінг</h2>
             <div class="space-y-4">
@@ -323,18 +314,46 @@
                 <select id="addCity" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 rounded-xl dark:text-white"></select>
                 <input type="text" id="addAddress" placeholder="Адреса (напр. вул. Соборна 5)" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 rounded-xl dark:text-white">
                 
-                <button id="btnGetLoc" onclick="window.getAddLocation(event)" class="w-full py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-sm border border-gray-300">📍 Я зараз тут (авто-координати)</button>
-                <p class="text-[10px] text-center text-gray-400 -mt-2 mb-2">Або просто введіть точну адресу, ми знайдемо її самі.</p>
-
                 <div class="flex gap-4 py-2">
                     <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="hasPower" class="w-5 h-5 rounded text-yellow-500"><span>Світло</span></label>
                     <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="hasInternet" class="w-5 h-5 rounded text-blue-500"><span>Інет</span></label>
                 </div>
                 <textarea id="addDesc" rows="2" placeholder="Умови (ціна, пароль на інет тощо)" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 rounded-xl outline-none dark:text-white"></textarea>
-                <button id="saveBtn" onclick="window.saveLocation()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black text-lg shadow-lg">ОПУБЛІКУВАТИ</button>
+                <button id="preSaveBtn" onclick="window.openConfirmation()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black text-lg shadow-lg">ОПУБЛІКУВАТИ</button>
             </div>
         </div>
     </div>
+
+    <div id="confirmModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm modal-enter-active">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-200 dark:border-gray-700">
+            <h3 class="text-xl font-bold mb-4 text-center dark:text-white">Перевірте дані</h3>
+            
+            <div class="space-y-3 text-sm mb-6">
+                <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Назва:</p>
+                    <p class="font-bold text-lg dark:text-white" id="confName"></p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Адреса:</p>
+                    <p class="font-medium dark:text-gray-200" id="confAddress"></p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Геолокація:</p>
+                    <p class="font-medium" id="confGeo"></p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Опції:</p>
+                    <p class="font-medium dark:text-gray-200" id="confOpts"></p>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="window.closeModal()" class="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-bold rounded-xl">Відміна</button>
+                <button id="confirmBtn" onclick="window.finalSave()" class="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg">Все вірно</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showTab(tab) {
             const find = document.getElementById('sectionFind'), add = document.getElementById('sectionAdd');
