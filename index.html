@@ -78,7 +78,6 @@
             return `${result}-${random}`;
         }
 
-        // Геокодування (лише для збереження координат у базу, щоб рахувати сортування)
         async function getCoordinatesFromAddress(city, address) {
             const query = `${address}, ${city}, Ukraine`;
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
@@ -111,20 +110,27 @@
             if(statusDiv) statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Визначаємо відстань...</span>';
             
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
-                    if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Ваша локація активна</span>';
-                    loadLocations();
-                }, (error) => {
-                    if(statusDiv) statusDiv.innerHTML = '<span class="text-gray-400">📍 Гео вимкнено</span>'; 
-                    loadLocations();
-                });
-            } else { loadLocations(); }
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Локацію визначено</span>';
+                        loadLocations();
+                    }, 
+                    (error) => {
+                        console.error("GPS Error:", error);
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ Доступ заборонено або помилка</span>'; 
+                        // Не викликаємо loadLocations, щоб не збивати список, просто показуємо помилку в статусі
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else { 
+                if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ GPS не підтримується</span>';
+            }
         }
 
-        // Тепер при зміні міста ми НЕ запитуємо геолокацію автоматично.
-        // Ми просто перезавантажуємо список.
         window.handleCityChange = () => {
+            // При зміні міста просто оновлюємо список.
+            // Гео-позицію не чіпаємо - якщо вона є, вона застосується. Якщо ні - ні.
             window.loadLocations();
         }
 
@@ -164,22 +170,16 @@
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
                         
-                        // --- ВИПРАВЛЕНО: Прямий пошук за адресою в Google Maps ---
-                        // Використовуємо формат https://www.google.com/maps/search/?api=1&query=...
-                        // Це змушує карту шукати саме текст адреси, ігноруючи будь-які координати.
+                        // Пряме посилання на Google Maps (Пошук)
                         const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
                         const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
                         
+                        // Плашка дистанції
                         let distBadge = '';
                         if (data.distance !== null) {
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>`;
-                        } else if (userCoords && (!data.lat || !data.lng)) {
-                            distBadge = `<span class="bg-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🗺️ Тільки адреса</span>`;
-                        } else if (!userCoords) {
-                             // Якщо гео не дано, не показуємо зайвого або показуємо "Вимкнено"
-                             // Можна лишити пустим, щоб не мозолило очі
-                             distBadge = ``;
                         }
+                        // Якщо GPS немає - ми просто НІЧОГО не показуємо біля назви. Так чистіше.
 
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
@@ -220,7 +220,6 @@
             btn.disabled = true;
             btn.innerText = "Шукаємо адресу на карті...";
 
-            // Авто-пошук координат
             let geoStatusText = "❌ Не знайдено на карті (буде збережено без GPS)";
             let geoClass = "text-red-500";
 
@@ -292,7 +291,7 @@
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
 
-        // Викликаємо завантаження списку, але БЕЗ запиту локації при старті
+        // Запускаємо завантаження списку (без запиту локації)
         loadLocations();
 
     </script>
@@ -373,7 +372,6 @@
                 find.classList.remove('hidden'); add.classList.add('hidden');
                 tF.className = "flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-bold shadow-md";
                 tA.className = "flex-1 py-2.5 rounded-lg text-gray-500 font-bold";
-                // window.requestUserLocation(); // ПРИБРАНО: більше не запитуємо при перемиканні вкладок
             } else {
                 find.classList.add('hidden'); add.classList.remove('hidden');
                 tA.className = "flex-1 py-2.5 rounded-lg bg-green-600 text-white font-bold shadow-md";
