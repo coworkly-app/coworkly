@@ -165,15 +165,16 @@
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
                         
-                        // Посилання на карту
+                        // --- ВИПРАВЛЕНО: Правильне посилання на Google Maps ---
                         let mapLink = '#';
                         if (data.lat && data.lng) {
+                            // Якщо є координати
                             mapLink = `https://www.google.com/maps?q=${data.lat},${data.lng}`;
                         } else {
+                            // Якщо тільки адреса
                             mapLink = `https://www.google.com/maps?q=${encodeURIComponent(data.city + ', ' + data.address)}`;
                         }
                         
-                        // Плашка дистанції
                         let distBadge = '';
                         if (data.distance !== null) {
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>`;
