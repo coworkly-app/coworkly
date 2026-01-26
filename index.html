@@ -14,7 +14,7 @@
     
     <style>
         body { transition: background-color 0.3s, color 0.3s; }
-        .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+        .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .bg-texture-dark { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s; }
@@ -115,7 +115,7 @@
                     if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Ваша локація активна</span>';
                     loadLocations();
                 }, (error) => {
-                    if(statusDiv) statusDiv.innerHTML = ''; 
+                    if(statusDiv) statusDiv.innerHTML = '<span class="text-gray-400">📍 Гео вимкнено</span>'; 
                     loadLocations();
                 });
             } else { loadLocations(); }
@@ -165,16 +165,22 @@
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
                         
-                        // --- ВИПРАВЛЕНО: ТЕПЕР ВІДКРИВАЄ ПОШУК ЗА АДРЕСОЮ, А НЕ МАРШРУТ ---
-                        // Формуємо посилання на пошук Google Maps: "City, Address"
-                        const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
-                        const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+                        // Посилання на карту
+                        let mapLink = '#';
+                        if (data.lat && data.lng) {
+                            mapLink = `https://www.google.com/maps?q=${data.lat},${data.lng}`;
+                        } else {
+                            mapLink = `https://www.google.com/maps?q=${encodeURIComponent(data.city + ', ' + data.address)}`;
+                        }
                         
+                        // Плашка дистанції
                         let distBadge = '';
                         if (data.distance !== null) {
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>`;
                         } else if (userCoords && (!data.lat || !data.lng)) {
                             distBadge = `<span class="bg-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🗺️ Тільки адреса</span>`;
+                        } else if (!userCoords) {
+                             distBadge = `<span class="bg-gray-200 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🌐 Гео вимкнено</span>`;
                         }
 
                         const card = document.createElement('div');
@@ -287,6 +293,10 @@
         window.loadLocations = loadLocations;
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
+
+        // 🔥 АВТО-ЗАПУСК ПРИ ВХОДІ 🔥
+        requestUserLocation();
+
     </script>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 bg-texture-light dark:bg-texture-dark min-h-screen font-sans text-gray-900 dark:text-gray-100">
