@@ -14,7 +14,7 @@
     
     <style>
         body { transition: background-color 0.3s, color 0.3s; }
-        .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+        .bg-texture-light { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .bg-texture-dark { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s; }
@@ -113,20 +113,15 @@
                 navigator.geolocation.getCurrentPosition((position) => {
                     userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
                     if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Ваша локація активна</span>';
-                    // Оновлюємо список вже з новими координатами
                     loadLocations();
                 }, (error) => {
-                    // Якщо помилка - не страшно, просто не будемо показувати відстань
                     if(statusDiv) statusDiv.innerHTML = ''; 
                     loadLocations();
                 });
             } else { loadLocations(); }
         }
 
-        // --- НОВА ФУНКЦІЯ ПРИ ВИБОРІ МІСТА ---
-        // Коли юзер обирає місто, ми намагаємось знайти його координати, щоб порахувати відстань
         window.handleCityChange = () => {
-            // Якщо координат ще немає, пробуємо їх отримати зараз
             if (!userCoords) {
                 window.requestUserLocation();
             } else {
@@ -153,7 +148,6 @@
 
                 if (cityFilter) locations = locations.filter(l => l.city === cityFilter);
 
-                // Сортування: Найближчі -> З координатами (далекі) -> Без координат
                 if (userCoords) {
                     locations.sort((a, b) => {
                         const distA = a.distance !== null ? a.distance : 99999;
@@ -170,18 +164,18 @@
                     }
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
-                        let mapLink = data.lat && data.lng ? `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.city + ', ' + data.address)}`;
                         
-                        // --- РОЗУМНА ПЛАШКА ВІДСТАНІ ---
+                        // --- ВИПРАВЛЕНО: ТЕПЕР ВІДКРИВАЄ ПОШУК ЗА АДРЕСОЮ, А НЕ МАРШРУТ ---
+                        // Формуємо посилання на пошук Google Maps: "City, Address"
+                        const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
+                        const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+                        
                         let distBadge = '';
                         if (data.distance !== null) {
-                            // Якщо є відстань
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>`;
                         } else if (userCoords && (!data.lat || !data.lng)) {
-                            // Якщо у ЮЗЕРА є GPS, але у ЗАКЛАДУ немає координат
                             distBadge = `<span class="bg-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🗺️ Тільки адреса</span>`;
                         }
-                        // Якщо у ЮЗЕРА немає GPS, ми нічого не показуємо (щоб не дратувати)
 
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
@@ -198,7 +192,7 @@
                             ${data.description ? `<p class="text-sm italic text-gray-500 mb-3 border-l-2 pl-2 border-gray-300">${data.description}</p>` : ''}
                             <div class="flex gap-2">
                                 <button onclick="window.updateStatus('${data.id}')" class="flex-1 py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
-                                <a href="${mapLink}" target="_blank" class="flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-bold flex items-center justify-center hover:bg-gray-200 transition">🗺️ Маршрут</a>
+                                <a href="${mapLink}" target="_blank" class="flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-bold flex items-center justify-center hover:bg-gray-200 transition">🗺️ На мапі</a>
                             </div>
                         `;
                         listDiv.appendChild(card);
