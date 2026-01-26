@@ -21,7 +21,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
-        // Оновлений імпорт: додано setDoc для кастомних назв
+        // Імпорт setDoc для кастомних назв
         import { getFirestore, collection, setDoc, getDocs, query, orderBy, serverTimestamp, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -60,7 +60,7 @@
             }
         });
 
-        // Допоміжна функція для транслітерації назв у ID
+        // Транслітерація
         function generateReadableId(city, name) {
             const map = {
                 'а': 'a', 'б': 'b', 'в': 'v', 'г': 'h', 'ґ': 'g', 'д': 'd', 'е': 'e', 'є': 'ye', 'ж': 'zh',
@@ -77,6 +77,7 @@
             return `${result}-${random}`;
         }
 
+        // Відстань
         function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
             const R = 6371; 
             const dLat = (lat2-lat1) * (Math.PI/180);
@@ -88,6 +89,7 @@
 
         let userCoords = null;
 
+        // Пошук локації користувача
         window.requestUserLocation = () => {
             const statusDiv = document.getElementById('geoStatus');
             if(statusDiv) statusDiv.innerHTML = '<span class="text-blue-500 animate-pulse">Визначаємо локацію...</span>';
@@ -105,32 +107,29 @@
             } else { loadLocations(); }
         }
 
-        // --- ВИПРАВЛЕНА ФУНКЦІЯ LOADLOCATIONS ---
+        // Завантаження списку
         async function loadLocations() {
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
             if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Оновлення даних...</p>';
             
             try {
-                // 1. Отримуємо всі дані
                 const q = query(collection(db, "locations"), orderBy("updated_at", "desc"));
                 const querySnapshot = await getDocs(q);
                 let locations = [];
                 
-                // 2. Рахуємо дистанцію для всіх
                 querySnapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     let dist = (userCoords && data.lat && data.lng) ? getDistanceFromLatLonInKm(userCoords.lat, userCoords.lng, data.lat, data.lng) : null;
                     locations.push({ id: docSnap.id, ...data, distance: dist });
                 });
 
-                // 3. Фільтруємо за містом (ЯКЩО ВИБРАНО)
+                // Спочатку фільтр по місту
                 if (cityFilter) {
                     locations = locations.filter(l => l.city === cityFilter);
                 }
 
-                // 4. Сортуємо за відстанню (ЯКЩО Є GPS)
-                // Незалежно від того, вибрано місто чи ні, якщо є координати - сортуємо
+                // Потім сортування по відстані (якщо є координати)
                 if (userCoords) {
                     locations.sort((a, b) => {
                         const distA = a.distance !== null ? a.distance : 99999;
@@ -139,7 +138,6 @@
                     });
                 }
 
-                // 5. Рендеримо
                 if(listDiv) {
                     listDiv.innerHTML = '';
                     if (locations.length === 0) {
@@ -148,7 +146,6 @@
                     }
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
-                        // Плашка з відстанню показується, тільки якщо є дистанція
                         const distBadge = data.distance 
                             ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>` 
                             : '';
@@ -175,17 +172,46 @@
         }
 
         let addCoords = null;
+
+        // --- ОНОВЛЕНА ФУНКЦІЯ ОТРИМАННЯ КООРДИНАТ ---
         window.getAddLocation = (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnGetLoc');
-            btn.innerText = "Отримуємо GPS...";
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    addCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    btn.className = "w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm border border-green-300 mb-3";
-                    btn.innerText = "📍 Локацію додано до картки!";
-                });
+            
+            // Перевірка підтримки
+            if (!navigator.geolocation) {
+                btn.innerText = "❌ GPS не підтримується";
+                return;
             }
+
+            // Індикація завантаження
+            btn.disabled = true;
+            btn.innerText = "Запит дозволу... (натисніть 'Дозволити')";
+            btn.className = "w-full py-2 bg-yellow-100 text-yellow-700 rounded-lg text-sm border border-yellow-300 mb-3 transition-all";
+
+            navigator.geolocation.getCurrentPosition(
+                // Успіх
+                (pos) => {
+                    addCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    btn.className = "w-full py-2 bg-green-100 text-green-700 rounded-lg text-sm border border-green-300 mb-3 font-bold shadow-sm";
+                    btn.innerText = "📍 Координати успішно збережено!";
+                    btn.disabled = false;
+                },
+                // Помилка
+                (err) => {
+                    console.error("GPS Error:", err);
+                    btn.className = "w-full py-2 bg-red-100 text-red-700 rounded-lg text-sm border border-red-300 mb-3";
+                    btn.disabled = false;
+                    switch(err.code) {
+                        case 1: btn.innerText = "❌ Ви заборонили доступ"; break;
+                        case 2: btn.innerText = "❌ Неможливо визначити"; break;
+                        case 3: btn.innerText = "❌ Час вийшов (спробуйте ще)"; break;
+                        default: btn.innerText = "❌ Помилка GPS";
+                    }
+                },
+                // Налаштування тайм-ауту
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
         };
 
         window.saveLocation = async () => {
