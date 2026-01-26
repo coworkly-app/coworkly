@@ -78,6 +78,7 @@
             return `${result}-${random}`;
         }
 
+        // Геокодування (лише для збереження координат у базу, щоб рахувати сортування)
         async function getCoordinatesFromAddress(city, address) {
             const query = `${address}, ${city}, Ukraine`;
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
@@ -121,12 +122,10 @@
             } else { loadLocations(); }
         }
 
+        // Тепер при зміні міста ми НЕ запитуємо геолокацію автоматично.
+        // Ми просто перезавантажуємо список.
         window.handleCityChange = () => {
-            if (!userCoords) {
-                window.requestUserLocation();
-            } else {
-                window.loadLocations();
-            }
+            window.loadLocations();
         }
 
         // --- ЗАВАНТАЖЕННЯ ---
@@ -165,15 +164,11 @@
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
                         
-                        // --- ВИПРАВЛЕНО: Правильне посилання на Google Maps ---
-                        let mapLink = '#';
-                        if (data.lat && data.lng) {
-                            // Якщо є координати
-                            mapLink = `https://www.google.com/maps?q=${data.lat},${data.lng}`;
-                        } else {
-                            // Якщо тільки адреса
-                            mapLink = `https://www.google.com/maps?q=${encodeURIComponent(data.city + ', ' + data.address)}`;
-                        }
+                        // --- ВИПРАВЛЕНО: Прямий пошук за адресою в Google Maps ---
+                        // Використовуємо формат https://www.google.com/maps/search/?api=1&query=...
+                        // Це змушує карту шукати саме текст адреси, ігноруючи будь-які координати.
+                        const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
+                        const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
                         
                         let distBadge = '';
                         if (data.distance !== null) {
@@ -181,7 +176,9 @@
                         } else if (userCoords && (!data.lat || !data.lng)) {
                             distBadge = `<span class="bg-gray-200 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🗺️ Тільки адреса</span>`;
                         } else if (!userCoords) {
-                             distBadge = `<span class="bg-gray-200 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold ml-2">🌐 Гео вимкнено</span>`;
+                             // Якщо гео не дано, не показуємо зайвого або показуємо "Вимкнено"
+                             // Можна лишити пустим, щоб не мозолило очі
+                             distBadge = ``;
                         }
 
                         const card = document.createElement('div');
@@ -295,8 +292,8 @@
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
 
-        // 🔥 АВТО-ЗАПУСК ПРИ ВХОДІ 🔥
-        requestUserLocation();
+        // Викликаємо завантаження списку, але БЕЗ запиту локації при старті
+        loadLocations();
 
     </script>
 </head>
@@ -316,7 +313,7 @@
                     <select id="searchCity" onchange="window.handleCityChange()" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 rounded-xl outline-none dark:text-white">
                         <option value="" disabled selected>Оберіть місто...</option>
                     </select>
-                    <button onclick="window.requestUserLocation()" class="bg-blue-100 text-blue-600 dark:bg-blue-900 p-3 rounded-xl border border-blue-200">📍</button>
+                    <button onclick="window.requestUserLocation()" class="bg-blue-100 text-blue-600 dark:bg-blue-900 p-3 rounded-xl border border-blue-200 text-2xl" title="Знайти поруч">📍</button>
                 </div>
                 <div id="geoStatus" class="text-[10px] text-center h-4"></div>
             </div>
@@ -376,7 +373,7 @@
                 find.classList.remove('hidden'); add.classList.add('hidden');
                 tF.className = "flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-bold shadow-md";
                 tA.className = "flex-1 py-2.5 rounded-lg text-gray-500 font-bold";
-                window.requestUserLocation();
+                // window.requestUserLocation(); // ПРИБРАНО: більше не запитуємо при перемиканні вкладок
             } else {
                 find.classList.add('hidden'); add.classList.remove('hidden');
                 tA.className = "flex-1 py-2.5 rounded-lg bg-green-600 text-white font-bold shadow-md";
