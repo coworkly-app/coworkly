@@ -118,8 +118,7 @@
                     }, 
                     (error) => {
                         console.error("GPS Error:", error);
-                        if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ Доступ заборонено або помилка</span>'; 
-                        // Не викликаємо loadLocations, щоб не збивати список, просто показуємо помилку в статусі
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ Доступ заборонено</span>'; 
                     },
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
@@ -129,8 +128,6 @@
         }
 
         window.handleCityChange = () => {
-            // При зміні міста просто оновлюємо список.
-            // Гео-позицію не чіпаємо - якщо вона є, вона застосується. Якщо ні - ні.
             window.loadLocations();
         }
 
@@ -170,16 +167,23 @@
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
                         
-                        // Пряме посилання на Google Maps (Пошук)
+                        // Посилання на карту
                         const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
                         const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
                         
-                        // Плашка дистанції
                         let distBadge = '';
                         if (data.distance !== null) {
-                            distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>`;
+                            distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2 shadow-sm">📍 ${data.distance.toFixed(1)} км</span>`;
                         }
-                        // Якщо GPS немає - ми просто НІЧОГО не показуємо біля назви. Так чистіше.
+
+                        // --- ЯСКРАВІ КОЛЬОРИ СТАТУСІВ ---
+                        const powerBadge = data.has_power 
+                            ? '<span class="bg-yellow-500 text-white shadow-md px-3 py-1 rounded-lg text-xs font-bold">⚡ Є світло</span>'
+                            : '<span class="bg-gray-100 text-gray-400 px-2 py-1 rounded-lg text-xs font-bold">💤 Немає</span>';
+                            
+                        const netBadge = data.has_internet 
+                            ? '<span class="bg-blue-600 text-white shadow-md px-3 py-1 rounded-lg text-xs font-bold">🌐 Є інет</span>'
+                            : '<span class="bg-gray-100 text-gray-400 px-2 py-1 rounded-lg text-xs font-bold">🚫 Немає</span>';
 
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
@@ -189,10 +193,12 @@
                                 <span class="text-[10px] uppercase text-gray-400 text-right min-w-[70px]">Оновлено:<br>${date}</span>
                             </div>
                             <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${data.city}, ${data.address}</p>
+                            
                             <div class="flex gap-2 mb-3">
-                                <span class="${data.has_power ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-400'} px-2 py-1 rounded-lg text-xs font-bold">${data.has_power ? '⚡ Є світло' : '💤 Немає'}</span>
-                                <span class="${data.has_internet ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400'} px-2 py-1 rounded-lg text-xs font-bold">${data.has_internet ? '🌐 Є інет' : '🚫 Немає'}</span>
+                                ${powerBadge}
+                                ${netBadge}
                             </div>
+                            
                             ${data.description ? `<p class="text-sm italic text-gray-500 mb-3 border-l-2 pl-2 border-gray-300">${data.description}</p>` : ''}
                             <div class="flex gap-2">
                                 <button onclick="window.updateStatus('${data.id}')" class="flex-1 py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
@@ -220,7 +226,7 @@
             btn.disabled = true;
             btn.innerText = "Шукаємо адресу на карті...";
 
-            let geoStatusText = "❌ Не знайдено на карті (буде збережено без GPS)";
+            let geoStatusText = "❌ Не знайдено на карті";
             let geoClass = "text-red-500";
 
             const autoCoords = await getCoordinatesFromAddress(city, addr);
@@ -291,7 +297,6 @@
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
 
-        // Запускаємо завантаження списку (без запиту локації)
         loadLocations();
 
     </script>
@@ -312,7 +317,7 @@
                     <select id="searchCity" onchange="window.handleCityChange()" class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 rounded-xl outline-none dark:text-white">
                         <option value="" disabled selected>Оберіть місто...</option>
                     </select>
-                    <button onclick="window.requestUserLocation()" class="bg-blue-100 text-blue-600 dark:bg-blue-900 p-3 rounded-xl border border-blue-200 text-2xl" title="Знайти поруч">📍</button>
+                    <button onclick="window.requestUserLocation()" class="bg-green-600 text-white p-3 rounded-xl border border-green-700 shadow-md text-2xl hover:bg-green-700 transition-all active:scale-95" title="Знайти поруч">📍</button>
                 </div>
                 <div id="geoStatus" class="text-[10px] text-center h-4"></div>
             </div>
