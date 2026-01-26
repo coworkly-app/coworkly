@@ -118,7 +118,7 @@
                     }, 
                     (error) => {
                         console.error("GPS Error:", error);
-                        if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ Доступ заборонено</span>'; 
+                        if(statusDiv) statusDiv.innerHTML = '<span class="text-red-500">❌ Доступ заборонено (налаштування системи)</span>'; 
                     },
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
@@ -166,15 +166,16 @@
                     }
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
+                        
+                        // --- ВИПРАВЛЕНО: Правильне посилання на Google Maps ---
                         const mapQuery = encodeURIComponent(`${data.city}, ${data.address}`);
-                        const mapLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+                        const mapLink = `https://www.google.com/maps?q=${mapQuery}`;
                         
                         let distBadge = '';
                         if (data.distance !== null) {
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2 shadow-sm">📍 ${data.distance.toFixed(1)} км</span>`;
                         }
 
-                        // ЯСКРАВІ КОЛЬОРИ СТАТУСІВ
                         const powerBadge = data.has_power 
                             ? '<span class="bg-yellow-500 text-white shadow-md px-3 py-1 rounded-lg text-xs font-bold">⚡ Є світло</span>'
                             : '<span class="bg-gray-100 text-gray-400 px-2 py-1 rounded-lg text-xs font-bold">💤 Немає</span>';
@@ -284,8 +285,6 @@
         };
 
         window.closeModal = () => { document.getElementById('confirmModal').classList.add('hidden'); };
-        
-        // Функції для модалки правил
         window.openRules = () => { document.getElementById('rulesModal').classList.remove('hidden'); };
         window.closeRules = () => { document.getElementById('rulesModal').classList.add('hidden'); };
 
@@ -382,7 +381,7 @@
             
             <div class="space-y-4 text-sm text-gray-600 dark:text-gray-300">
                 <div>
-                    <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-2">🔍 Розділ "Знайти" (той хто шукає) </h4>
+                    <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center gap-2">🔍 Розділ "Знайти" (той хто шукає)</h4>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Оберіть своє місто зі списку.</li>
                         <li>Натисніть <span class="text-green-600 font-bold">📍</span>, щоб побачити заклади поруч (сортування за відстанню).</li>
@@ -394,7 +393,7 @@
                 <hr class="border-gray-200 dark:border-gray-700">
 
                 <div>
-                    <h4 class="font-bold text-green-600 dark:text-green-400 mb-1 flex items-center gap-2">➕ Розділ "Додати" (той хто надає)</li></h4>
+                    <h4 class="font-bold text-green-600 dark:text-green-400 mb-1 flex items-center gap-2">➕ Розділ "Додати" (той хто надає)</h4>
                     <ul class="list-disc pl-5 space-y-1">
                         <li>Впишіть назву та <b>точну адресу</b> (вулиця, номер).</li>
                         <li>Система <b>автоматично</b> знайде координати на мапі.</li>
