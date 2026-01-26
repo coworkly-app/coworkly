@@ -105,27 +105,41 @@
             } else { loadLocations(); }
         }
 
+        // --- ВИПРАВЛЕНА ФУНКЦІЯ LOADLOCATIONS ---
         async function loadLocations() {
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
             if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Оновлення даних...</p>';
             
             try {
+                // 1. Отримуємо всі дані
                 const q = query(collection(db, "locations"), orderBy("updated_at", "desc"));
                 const querySnapshot = await getDocs(q);
                 let locations = [];
+                
+                // 2. Рахуємо дистанцію для всіх
                 querySnapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     let dist = (userCoords && data.lat && data.lng) ? getDistanceFromLatLonInKm(userCoords.lat, userCoords.lng, data.lat, data.lng) : null;
                     locations.push({ id: docSnap.id, ...data, distance: dist });
                 });
 
-                if (userCoords && !cityFilter) {
-                    locations.sort((a, b) => (a.distance || 999) - (b.distance || 999));
-                } else if (cityFilter) {
+                // 3. Фільтруємо за містом (ЯКЩО ВИБРАНО)
+                if (cityFilter) {
                     locations = locations.filter(l => l.city === cityFilter);
                 }
 
+                // 4. Сортуємо за відстанню (ЯКЩО Є GPS)
+                // Незалежно від того, вибрано місто чи ні, якщо є координати - сортуємо
+                if (userCoords) {
+                    locations.sort((a, b) => {
+                        const distA = a.distance !== null ? a.distance : 99999;
+                        const distB = b.distance !== null ? b.distance : 99999;
+                        return distA - distB;
+                    });
+                }
+
+                // 5. Рендеримо
                 if(listDiv) {
                     listDiv.innerHTML = '';
                     if (locations.length === 0) {
@@ -134,20 +148,25 @@
                     }
                     locations.forEach((data) => {
                         const date = data.updated_at?.toDate().toLocaleString('uk-UA') || 'Щойно';
-                        const distBadge = data.distance ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">📍 ${data.distance.toFixed(1)} км</span>` : '';
+                        // Плашка з відстанню показується, тільки якщо є дистанція
+                        const distBadge = data.distance 
+                            ? `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2">📍 ${data.distance.toFixed(1)} км</span>` 
+                            : '';
+                        
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
                         card.innerHTML = `
                             <div class="flex justify-between items-start mb-2">
-                                <div><h3 class="font-bold text-lg dark:text-white">${data.name}</h3>${distBadge}</div>
-                                <span class="text-[10px] uppercase text-gray-400 text-right">Оновлено:<br>${date}</span>
+                                <div><h3 class="font-bold text-lg dark:text-white inline-block">${data.name}</h3>${distBadge}</div>
+                                <span class="text-[10px] uppercase text-gray-400 text-right min-w-[70px]">Оновлено:<br>${date}</span>
                             </div>
                             <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">${data.city}, ${data.address}</p>
                             <div class="flex gap-2 mb-3">
                                 <span class="${data.has_power ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-400'} px-2 py-1 rounded-lg text-xs font-bold">${data.has_power ? '⚡ Є світло' : '💤 Немає'}</span>
                                 <span class="${data.has_internet ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400'} px-2 py-1 rounded-lg text-xs font-bold">${data.has_internet ? '🌐 Є інет' : '🚫 Немає'}</span>
                             </div>
-                            <button onclick="window.updateStatus('${data.id}')" class="w-full py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg">Це актуально ✅</button>
+                            ${data.description ? `<p class="text-sm italic text-gray-500 mb-3 border-l-2 pl-2 border-gray-300">${data.description}</p>` : ''}
+                            <button onclick="window.updateStatus('${data.id}')" class="w-full py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
                         `;
                         listDiv.appendChild(card);
                     });
