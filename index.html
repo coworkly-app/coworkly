@@ -27,7 +27,6 @@
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
         import { getFirestore, collection, setDoc, getDocs, query, orderBy, serverTimestamp, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- ⚠️ ВСТАВ СЮДИ СВОЇ ДАНІ FIREBASE ⚠️ ---
         const firebaseConfig = {
             apiKey: "AIzaSyB098Rx6AOCdkjX7ZgX6Zk42uNDv8PXbXc",
             authDomain: "coworkly-3d04d.firebaseapp.com",
@@ -42,14 +41,35 @@
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        const cities = [
-            "Київ", "Харків", "Одеса", "Дніпро", "Запоріжжя", "Львів", "Кривий Ріг", "Миколаїв", 
-            "Вінниця", "Полтава", "Чернігів", "Черкаси", "Житомир", "Суми", "Рівне", 
-            "Івано-Франківськ", "Кам'янське", "Кропивницький", "Тернопіль", "Луцьк", 
-            "Біла Церква", "Кременчук", "Бровари", "Павлоград", "Мукачево", "Конотоп", "Умань", 
-            "Олександрія", "Дрогобич", "Бердичів", "Шостка", "Ізмаїл", "Новомосковськ", 
-            "Ковель", "Ніжин", "Сміла", "Калуш", "Червоноград", "Бориспіль", "Коростень", "Коломия", "Ірпінь"
-        ].sort();
+        // Координати центрів міст для авто-визначення
+        const cityCenters = {
+            "Київ": { lat: 50.4501, lng: 30.5234 },
+            "Бровари": { lat: 50.5114, lng: 30.7903 },
+            "Харків": { lat: 49.9935, lng: 36.2304 },
+            "Одеса": { lat: 46.4825, lng: 30.7233 },
+            "Дніпро": { lat: 48.4647, lng: 35.0462 },
+            "Львів": { lat: 49.8397, lng: 24.0297 },
+            "Івано-Франківськ": { lat: 48.9226, lng: 24.7111 },
+            "Запоріжжя": { lat: 47.8388, lng: 35.1396 },
+            "Кривий Ріг": { lat: 47.9105, lng: 33.3918 },
+            "Миколаїв": { lat: 46.9750, lng: 31.9946 },
+            "Вінниця": { lat: 49.2331, lng: 28.4682 },
+            "Полтава": { lat: 49.5883, lng: 34.5514 },
+            "Чернігів": { lat: 51.4982, lng: 31.2893 },
+            "Черкаси": { lat: 49.4444, lng: 32.0598 },
+            "Житомир": { lat: 50.2547, lng: 28.6587 },
+            "Суми": { lat: 50.9077, lng: 34.7981 },
+            "Рівне": { lat: 50.6199, lng: 26.2516 },
+            "Тернопіль": { lat: 49.5535, lng: 25.5948 },
+            "Луцьк": { lat: 50.7472, lng: 25.3254 },
+            "Біла Церква": { lat: 49.7969, lng: 30.1158 },
+            "Ужгород": { lat: 48.6208, lng: 22.2879 },
+            "Мукачево": { lat: 48.4436, lng: 22.7135 },
+            "Ірпінь": { lat: 50.5195, lng: 30.2443 },
+            "Буча": { lat: 50.5526, lng: 30.2132 }
+        };
+
+        const cities = Object.keys(cityCenters).sort();
 
         const citySelects = ['searchCity', 'addCity'];
         citySelects.forEach(id => {
@@ -84,7 +104,7 @@
             const query = `${address}, ${city}, Ukraine`;
             const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
             try {
-                const response = await fetch(url, { headers: { 'User-Agent': 'Coworkly-App' } });
+                const response = await fetch(url); // Без хедерів, щоб уникнути помилок
                 const data = await response.json();
                 if (data && data.length > 0) {
                     return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
@@ -116,8 +136,9 @@
                     (position) => {
                         userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
                         if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Локацію визначено</span>';
-                        // Після отримання гео перезавантажуємо список, якщо місто вже вибране
-                        loadLocations();
+                        
+                        // 🔥 АВТО-ВИБІР МІСТА 🔥
+                        findNearestCityAndLoad(userCoords.lat, userCoords.lng);
                     }, 
                     (error) => {
                         console.error("GPS Error:", error);
@@ -130,6 +151,34 @@
             }
         }
 
+        // Функція для пошуку найближчого міста
+        function findNearestCityAndLoad(lat, lng) {
+            let closestCity = null;
+            let minDistance = Infinity;
+
+            for (const [city, coords] of Object.entries(cityCenters)) {
+                const dist = getDistanceFromLatLonInKm(lat, lng, coords.lat, coords.lng);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestCity = city;
+                }
+            }
+
+            // Якщо найближче місто ближче ніж 50 км, вибираємо його
+            if (closestCity && minDistance < 50) {
+                const select = document.getElementById('searchCity');
+                if (select.value !== closestCity) {
+                    select.value = closestCity;
+                    // Візуальне повідомлення
+                    const statusDiv = document.getElementById('geoStatus');
+                    if(statusDiv) statusDiv.innerHTML = `<span class="text-green-600 font-semibold">✅ Визначено: ${closestCity}</span>`;
+                }
+            }
+            
+            // Завантажуємо локації (вже з вибраним містом)
+            loadLocations();
+        }
+
         window.handleCityChange = () => {
             window.loadLocations();
         }
@@ -139,10 +188,9 @@
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
 
-            // 🔥 ТЕПЕР ОБОВ'ЯЗКОВО ТРЕБА ВИБРАТИ МІСТО
             if (!cityFilter) {
                 if(listDiv) listDiv.innerHTML = `<div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4 bg-white/50 dark:bg-gray-800/50">
-                    <h3 class="font-bold text-gray-500 dark:text-gray-400">⬅️ Будь ласка, оберіть місто зі списку, щоб побачити локації</h3>
+                    <h3 class="font-bold text-gray-500 dark:text-gray-400">⬅️ Будь ласка, оберіть місто зі списку<br>або натисніть 📍 для автопошуку</h3>
                 </div>`;
                 return;
             }
@@ -150,7 +198,7 @@
             if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Завантаження...</p>';
             
             try {
-                // 🔥 ЗМІНА: Запит йде в підколекцію конкретного міста: locations/{city}/places
+                // Запит в підколекцію міста
                 const q = query(collection(db, "locations", cityFilter, "places"), orderBy("updated_at", "desc"));
                 const querySnapshot = await getDocs(q);
                 let locations = [];
@@ -196,7 +244,6 @@
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
                         
-                        // 🔥 ЗМІНА: Передаємо місто в функцію оновлення статусу
                         card.innerHTML = `
                             <div class="flex justify-between items-start mb-2">
                                 <div><h3 class="font-bold text-lg dark:text-white inline-block">${data.name}</h3>${distBadge}</div>
@@ -286,7 +333,6 @@
                     docData.lng = addCoords.lng; 
                 }
                 
-                // 🔥 ЗМІНА: Зберігаємо в підпапку міста: locations/{city}/places/{id}
                 await setDoc(doc(db, "locations", tempFormData.city, "places", customId), docData);
                 location.reload(); 
             } catch (error) { 
@@ -300,7 +346,6 @@
         window.openRules = () => { document.getElementById('rulesModal').classList.remove('hidden'); };
         window.closeRules = () => { document.getElementById('rulesModal').classList.add('hidden'); };
 
-        // 🔥 ЗМІНА: Оновлення теж потребує знати місто
         window.updateStatus = async (id, city) => {
             await updateDoc(doc(db, "locations", city, "places", id), { updated_at: serverTimestamp() });
             loadLocations();
@@ -310,7 +355,7 @@
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
 
-        // Авто-завантаження (тепер просто покаже повідомлення "Оберіть місто")
+        // Авто-завантаження
         loadLocations();
 
     </script>
@@ -450,5 +495,6 @@
             }
         }
     </script>
+
 </body>
 </html>
