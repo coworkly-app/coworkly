@@ -116,6 +116,7 @@
                     (position) => {
                         userCoords = { lat: position.coords.latitude, lng: position.coords.longitude };
                         if(statusDiv) statusDiv.innerHTML = '<span class="text-green-600 font-semibold">✅ Локацію визначено</span>';
+                        // Після отримання гео перезавантажуємо список, якщо місто вже вибране
                         loadLocations();
                     }, 
                     (error) => {
@@ -137,10 +138,20 @@
         async function loadLocations() {
             const listDiv = document.getElementById('locationsList');
             const cityFilter = document.getElementById('searchCity').value;
-            if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Оновлення даних...</p>';
+
+            // 🔥 ТЕПЕР ОБОВ'ЯЗКОВО ТРЕБА ВИБРАТИ МІСТО
+            if (!cityFilter) {
+                if(listDiv) listDiv.innerHTML = `<div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4 bg-white/50 dark:bg-gray-800/50">
+                    <h3 class="font-bold text-gray-500 dark:text-gray-400">⬅️ Будь ласка, оберіть місто зі списку, щоб побачити локації</h3>
+                </div>`;
+                return;
+            }
+
+            if(listDiv) listDiv.innerHTML = '<p class="text-center dark:text-gray-400 mt-4">Завантаження...</p>';
             
             try {
-                const q = query(collection(db, "locations"), orderBy("updated_at", "desc"));
+                // 🔥 ЗМІНА: Запит йде в підколекцію конкретного міста: locations/{city}/places
+                const q = query(collection(db, "locations", cityFilter, "places"), orderBy("updated_at", "desc"));
                 const querySnapshot = await getDocs(q);
                 let locations = [];
                 
@@ -149,8 +160,6 @@
                     let dist = (userCoords && data.lat && data.lng) ? getDistanceFromLatLonInKm(userCoords.lat, userCoords.lng, data.lat, data.lng) : null;
                     locations.push({ id: docSnap.id, ...data, distance: dist });
                 });
-
-                if (cityFilter) locations = locations.filter(l => l.city === cityFilter);
 
                 if (userCoords) {
                     locations.sort((a, b) => {
@@ -163,7 +172,7 @@
                 if(listDiv) {
                     listDiv.innerHTML = '';
                     if (locations.length === 0) {
-                        listDiv.innerHTML = `<div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4 bg-white/50 dark:bg-gray-800/50"><h3 class="font-bold text-gray-700 dark:text-gray-300">Поки що пусто... В вашому місті ще не додані локації. Залишайтесь з нами та слідкуйте за оновленнями</h3></div>`;
+                        listDiv.innerHTML = `<div class="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl mt-4 bg-white/50 dark:bg-gray-800/50"><h3 class="font-bold text-gray-700 dark:text-gray-300">У місті ${cityFilter} поки немає локацій. <br>Будьте першим, хто додасть! 🚀</h3></div>`;
                         return;
                     }
                     locations.forEach((data) => {
@@ -176,7 +185,6 @@
                             distBadge = `<span class="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold ml-2 shadow-sm">📍 ${data.distance.toFixed(1)} км</span>`;
                         }
 
-                        // ЯСКРАВІ КОЛЬОРИ СТАТУСІВ
                         const powerBadge = data.has_power 
                             ? '<span class="bg-yellow-500 text-white shadow-md px-3 py-1 rounded-lg text-xs font-bold">⚡ Є світло</span>'
                             : '<span class="bg-gray-100 text-gray-400 px-2 py-1 rounded-lg text-xs font-bold">💤 Немає</span>';
@@ -187,6 +195,8 @@
 
                         const card = document.createElement('div');
                         card.className = "p-4 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm mb-4";
+                        
+                        // 🔥 ЗМІНА: Передаємо місто в функцію оновлення статусу
                         card.innerHTML = `
                             <div class="flex justify-between items-start mb-2">
                                 <div><h3 class="font-bold text-lg dark:text-white inline-block">${data.name}</h3>${distBadge}</div>
@@ -201,7 +211,7 @@
                             
                             ${data.description ? `<p class="text-sm italic text-gray-500 mb-3 border-l-2 pl-2 border-gray-300">${data.description}</p>` : ''}
                             <div class="flex gap-2">
-                                <button onclick="window.updateStatus('${data.id}')" class="flex-1 py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
+                                <button onclick="window.updateStatus('${data.id}', '${data.city}')" class="flex-1 py-2 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-100 dark:border-blue-900/50 rounded-lg active:bg-blue-50">Це актуально ✅</button>
                                 <a href="${mapLink}" target="_blank" class="flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-bold flex items-center justify-center hover:bg-gray-200 transition">🗺️ На мапі</a>
                             </div>
                         `;
@@ -276,7 +286,8 @@
                     docData.lng = addCoords.lng; 
                 }
                 
-                await setDoc(doc(db, "locations", customId), docData);
+                // 🔥 ЗМІНА: Зберігаємо в підпапку міста: locations/{city}/places/{id}
+                await setDoc(doc(db, "locations", tempFormData.city, "places", customId), docData);
                 location.reload(); 
             } catch (error) { 
                 alert("Помилка: " + error.message); 
@@ -286,13 +297,12 @@
         };
 
         window.closeModal = () => { document.getElementById('confirmModal').classList.add('hidden'); };
-        
-        // Функції для модалки правил
         window.openRules = () => { document.getElementById('rulesModal').classList.remove('hidden'); };
         window.closeRules = () => { document.getElementById('rulesModal').classList.add('hidden'); };
 
-        window.updateStatus = async (id) => {
-            await updateDoc(doc(db, "locations", id), { updated_at: serverTimestamp() });
+        // 🔥 ЗМІНА: Оновлення теж потребує знати місто
+        window.updateStatus = async (id, city) => {
+            await updateDoc(doc(db, "locations", city, "places", id), { updated_at: serverTimestamp() });
             loadLocations();
         };
 
@@ -300,6 +310,7 @@
         window.requestUserLocation = requestUserLocation;
         window.handleCityChange = handleCityChange;
 
+        // Авто-завантаження (тепер просто покаже повідомлення "Оберіть місто")
         loadLocations();
 
     </script>
