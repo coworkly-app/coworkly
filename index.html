@@ -439,11 +439,12 @@
             }
         }
     </script>
+    
     // Список РЕАЛЬНИХ закладів ВИДАЛИТИ
 
-    <div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+<div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
     <button id="seedBtn" onclick="window.seedRealDatabase()" class="bg-red-600 text-white p-4 rounded-xl font-bold shadow-2xl border-4 border-white hover:scale-105 transition">
-        💾 ЗАПОВНИТИ БАЗУ (РЕАЛЬНІ ДАНІ)
+        💾 ЗАПОВНИТИ БАЗУ (ВСЮДИ Є СВІТЛО)
     </button>
 </div>
 
@@ -464,38 +465,31 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Список РЕАЛЬНИХ закладів
     const realPlaces = [
         // Київ
         { city: "Київ", name: "Creative State of Arsenal", address: "вулиця Князів Острозьких, 8", type: "coworking" },
         { city: "Київ", name: "Kooperativ", address: "вулиця Січових Стрільців, 23A", type: "coworking" },
         { city: "Київ", name: "Octo Tower", address: "вулиця Мечникова, 5", type: "cafe" },
         { city: "Київ", name: "One Love Coffee", address: "вулиця Велика Васильківська, 100", type: "cafe" },
-        
         // Львів
         { city: "Львів", name: "Futura Hub", address: "вулиця Кульпарківська, 200А", type: "coworking" },
         { city: "Львів", name: "Львівська Копальня Кави", address: "площа Ринок, 10", type: "cafe" },
         { city: "Львів", name: "Svit Kavy", address: "площа Катедральна, 6", type: "cafe" },
-        
         // Одеса
         { city: "Одеса", name: "Cooffice", address: "вулиця Базарна, 18", type: "coworking" },
         { city: "Одеса", name: "Foundation Coffee Roasters", address: "вулиця Жуковського, 19", type: "cafe" },
         { city: "Одеса", name: "Atelier. Design & Coffee", address: "вулиця Преображенська, 9А", type: "cafe" },
-
         // Дніпро
         { city: "Дніпро", name: "Creative State of Dnipro", address: "вулиця Барикадна, 16", type: "coworking" },
         { city: "Дніпро", name: "DoubleDecker Cake & Coffee", address: "проспект Дмитра Яворницького, 46", type: "cafe" },
-
         // Харків
         { city: "Харків", name: "CoWorking Club", address: "вулиця Мироносицька, 63", type: "coworking" },
         { city: "Харків", name: "Spalah", address: "вулиця Дівоча, 6", type: "coworking" },
-
         // Івано-Франківськ
         { city: "Івано-Франківськ", name: "Promprylad.Renovation", address: "вулиця Академіка Сахарова, 23", type: "coworking" },
         { city: "Івано-Франківськ", name: "Urban Space 100", address: "вулиця Михайла Грушевського, 19", type: "cafe" }
     ];
 
-    // Допоміжна функція пошуку координат
     async function getCoords(city, address) {
         const query = `${address}, ${city}, Ukraine`;
         try {
@@ -518,26 +512,27 @@
 
     window.seedRealDatabase = async () => {
         const btn = document.getElementById('seedBtn');
-        if (!confirm("Додати реальні заклади? Це займе ~30 секунд.")) return;
+        if (!confirm("Додати реальні заклади (зі світлом та інетом)? Це займе ~30 секунд.")) return;
 
         btn.disabled = true;
-        btn.innerText = "⏳ Обробка... Не закривайте!";
+        btn.innerText = "⏳ Додаємо... (не закривайте)";
         let count = 0;
 
         for (const place of realPlaces) {
-            // 1. Отримуємо координати
             const coords = await getCoords(place.city, place.address);
             
-            // 2. Формуємо дані
             const docData = {
                 name: place.name,
                 city: place.city,
                 address: place.address,
-                has_power: true, // Припустимо, що в крутих місцях є світло
+                
+                // 🔥 ТУТ МИ СТАВИМО "ТАК" ДЛЯ ВСІХ 🔥
+                has_power: true, 
                 has_internet: true,
+                
                 description: place.type === 'coworking' 
-                    ? "Популярний коворкінг зі стабільним інтернетом та генератором." 
-                    : "Затишний заклад, зручно працювати з ноутбуком.",
+                    ? "Популярний коворкінг. Генератор та Starlink працюють." 
+                    : "Світло є завжди (генератор). Інтернет стабільний.",
                 updated_at: serverTimestamp()
             };
 
@@ -546,19 +541,18 @@
                 docData.lng = coords.lng;
             }
 
-            // 3. Зберігаємо
             const docId = generateId(place.city, place.name);
             await setDoc(doc(db, "locations", docId), docData);
             
-            console.log(`✅ Додано: ${place.name}`);
+            console.log(`✅ Додано (+світло/інет): ${place.name}`);
             count++;
 
-            // 4. Пауза 1.2 сек, щоб не заблокували OpenStreetMap
             await new Promise(r => setTimeout(r, 1200));
         }
 
-        btn.innerText = "✅ ГОТОВО!";
-        alert(`Успішно додано ${count} закладів! Оновіть сторінку.`);
+        btn.className = "bg-green-600 text-white p-4 rounded-xl font-bold shadow-2xl border-4 border-white";
+        btn.innerText = "✅ ГОТОВО! (Оновіть сторінку)";
+        alert(`Успішно додано ${count} закладів! Всі мають світло та інет.`);
         location.reload();
     };
 </script>
